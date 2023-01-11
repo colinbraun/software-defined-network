@@ -12,6 +12,8 @@ from socket import *
 
 # Please do not modify the name of the log file, otherwise you will lose points because the grader won't be able to find your log file
 LOG_FILE = "switch#.log" # The log file for switches are switch#.log, where # is the id of that switch (i.e. switch0.log, switch1.log). The code for replacing # with a real number has been given to you in the main function.
+K = 2
+TIMEOUT = 3 * K
 
 # Those are logging functions to help you follow the correct logging standard
 
@@ -126,6 +128,8 @@ class Switch:
         register_request_sent()
         # Wait for the register response
         data, addr = self.sock.recvfrom(1024)
+        # Log that it was received
+        register_response_received()
         message = data.decode("utf-8")
         lines = message.split("\n")
         num_neighbors = int(lines[0])
@@ -137,6 +141,8 @@ class Switch:
             parts = lines[neighbor_index + 1].split(" ")
             self.neighbor_ids[neighbor_index] = int(parts[0])
             self.neighbor_addrs[neighbor_index] = (parts[1], int(parts[2]))
+        # print(f"I am switch {self.switch_id}")
+        # print(f"My neighbors:\n{self.neighbor_ids}")
 
     def send_keep_alive(self):
         """

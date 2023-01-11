@@ -13,6 +13,8 @@ from heapq import *
 
 # Please do not modify the name of the log file, otherwise you will lose points because the grader won't be able to find your log file
 LOG_FILE = "Controller.log"
+K = 2
+TIMEOUT = 3 * K
 
 # Those are logging functions to help you follow the correct logging standard
 
@@ -143,6 +145,8 @@ class Controller:
             self.switch_ips[switch_id] = addr[0]
             self.switch_ports[switch_id] = addr[1]
             num_requests += 1
+            # Log that we received the register request
+            register_request_received(switch_id)
 
         # Compute the routing table
         self.compute_routes()
@@ -193,8 +197,11 @@ class Controller:
                     next_hop = pred[next_hop]
                 data = [node_num, dest, next_hop, length]
                 rt_table.append(data)
-        # -------------DONE COMPUTING ROUTING TABLE-----------------
+        #-------------DONE COMPUTING ROUTING TABLE-----------------
         self.rt_table = rt_table
+        # Log that we computed the routing table
+        routing_table_update(rt_table)t
+
 
     def send_route_update(self, switch_id):
         """
@@ -217,6 +224,8 @@ class Controller:
             message += f"{neighbor} localhost {self.switch_ports[neighbor]}\n"
         b_message = message.encode("utf-8")
         self.sock.sendto(b_message, ("localhost", self.switch_ports[switch_id]))
+        # Log that the register response was sent
+        register_response_sent(switch_id)
 
 
 def main():

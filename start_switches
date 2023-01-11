@@ -3,12 +3,12 @@
 echo Starting Switches...
 echo
 
-python3 switch.py 0 3001 3000 &
-python3 switch.py 1 3002 3000 &
-python3 switch.py 2 3003 3000 &
-python3 switch.py 3 3004 3000 &
-python3 switch.py 4 3005 3000 &
-python3 switch.py 5 3006 3000 &
+python3 switch.py 0 localhost 3000 &
+python3 switch.py 1 localhost 3000 &
+python3 switch.py 2 localhost 3000 &
+python3 switch.py 3 localhost 3000 &
+python3 switch.py 4 localhost 3000 &
+python3 switch.py 5 localhost 3000 &
 
 echo
 echo Done Starting Switches...
