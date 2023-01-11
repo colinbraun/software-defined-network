@@ -88,6 +88,78 @@ def write_to_log(log):
         # Write to log
         log_file.writelines(log)
 
+class Switch:
+
+    def __init__(self, switch_id, controller_port, controller_hostname="localhost"):
+        """
+        Switch constructor.
+        """
+        self.switch_id = switch_id
+        self.controller_hostname = controller_hostname
+        self.controller_port = controller_port
+        self.controller_address = (controller_hostname, controller_port)
+        self.sock = socket(AF_INET, SOCK_DGRAM)
+        # To be updated when registering
+        self.neighbor_ids = None
+        self.neighbor_addrs = None
+        self.neighbor_statuses = None
+        # sock.bind(("localhost", int(sys.argv[1])))
+
+    def bootstrap(self):
+        """
+        Run the bootstrap code. Always run this first after constructing this object.
+        """
+        self.send_register_request()
+        # Initially assume all other neighbors are alive
+        self.neighbor_statuses = [True] * len(self.neighbor_addrs)
+
+    def send_register_request(self):
+        """
+        Send a register request to the controller. Waits for a register response from the controller and returns once received.
+        """
+        # Construct the message
+        message = f"{self.switch_id} Register_Request"
+        b_message = message.encode("utf-8")
+        # Send it
+        self.sock.sendto(b_message, self.controller_address)
+        # Log that a register request was sent
+        register_request_sent()
+        # Wait for the register response
+        data, addr = self.sock.recvfrom(1024)
+        message = data.decode("utf-8")
+        lines = message.split("\n")
+        num_neighbors = int(lines[0])
+        # The addresses (hostname, port) of the neighbors
+        self.neighbor_addrs = [None] * num_neighbors
+        # The ids of the neighbors
+        self.neighbor_ids = [-1] * num_neighbors
+        for neighbor_index in range(num_neighbors):
+            parts = lines[neighbor_index + 1].split(" ")
+            self.neighbor_ids[neighbor_index] = int(parts[0])
+            self.neighbor_addrs[neighbor_index] = (parts[1], int(parts[2]))
+
+    def send_keep_alive(self):
+        """
+        Send the keep-alive message to all neighbor switches.
+        """
+        message = f"{self.switch_id} KEEP_ALIVE"
+        b_message = message.encode("utf-8")
+        for neighbor_addr in self.neighbor_addrs:
+            self.sock.sendto(b_message, neighbor_addr)
+    
+    def send_topology_update(self):
+        """
+        Send a topology update to the controller, detailing which neighbors are still alive and which are dead.
+        """
+        message = f"{self.switch_id}\n"
+        for i, neighbor_id in enumerate(self.neighbor_ids):
+            message += f"{neighbor_id} {self.neighbor_statuses[i]}\n"
+
+        b_message = message.encode("utf-8")
+        self.sock.sendto(b_message, self.controller_address)
+
+    
+
 def main():
 
     global LOG_FILE
@@ -100,11 +172,10 @@ def main():
 
     my_id = int(sys.argv[1])
     LOG_FILE = 'switch' + str(my_id) + ".log" 
+    switch = Switch(my_id, int(sys.argv[3]))
+    switch.bootstrap()
 
     # Write your code below or elsewhere in this file
-    sock = socket(AF_INET, SOCK_DGRAM)
-    # sock.bind(("localhost", int(sys.argv[1])))
-    sock.sendto(b"test", ("localhost", int(sys.argv[3])))
 
 if __name__ == "__main__":
     main()

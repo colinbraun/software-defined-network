@@ -109,70 +109,127 @@ def write_to_log(log):
         # Write to log
         log_file.writelines(log)
 
+
+class Controller:
+
+    def __init__(self, port, config_file):
+        self.port = port
+
+        # Read in the configuration file
+        file = open(config_file, "r")
+        self.config_lines = file.readlines()
+        self.num_switches = int(self.config_lines[0])
+        self.switch_ips = [""] * self.num_switches
+        self.switch_ports = [-1] * self.num_switches
+
+        # Create a socket
+        self.sock = socket(AF_INET, SOCK_DGRAM)
+        self.sock.bind(("localhost", port))
+
+    def bootstrap(self):
+        """
+        Run the bootstrap code.
+        1. Wait for all switches to have sent their register request
+        """
+        #--------------WAIT FOR ALL SWITCH REQUESTS-------------
+        num_requests = 0
+        while num_requests < self.num_switches:
+            data, addr = self.sock.recvfrom(1024) # buffer size is 1024 bytes
+            data = data.decode("utf-8")
+            switch_id = int(data[0])
+            print("received message: %s" % data)
+            print(addr)
+            print(switch_id)
+            self.switch_ips[switch_id] = addr[0]
+            self.switch_ports[switch_id] = addr[1]
+            num_requests += 1
+
+        # Compute the routing table
+        self.compute_routes()
+        # Send the register responses
+        for switch_id in range(self.num_switches):
+            self.send_register_response(switch_id)
+
+    def compute_routes(self):
+        """
+        Compute the routing table based on the information in the config file.
+        """
+        #-------------------COMPUTE ROUTING TABLE-----------
+        rt_table = []
+        lengths = {}
+        self.neighbors = [[] for i in range(self.num_switches)]
+        for line in self.config_lines[1:]:
+            node1, node2, dist = line.split(" ")
+            node1 = int(node1)
+            node2 = int(node2)
+            dist = int(dist)
+            lengths[(node1, node2)] = dist
+            lengths[(node2, node1)] = dist
+            self.neighbors[node1].append(node2)
+            self.neighbors[node2].append(node1)
+        # Find the shortest paths for each node
+        for node_num in range(self.num_switches):
+            costs = [9999] * self.num_switches
+            costs[node_num] = 0
+            pred = [node_num] * self.num_switches
+            reached = set()
+            candidates = []
+            heappush(candidates, node_num)
+            while candidates != []:
+                x = heappop(candidates)
+                reached.add(x)
+                for y in self.neighbors[x]:
+                    if y not in reached:
+                        if costs[x] + lengths[(x, y)] < costs[y]:
+                            if costs[y] == 9999:
+                                heappush(candidates, y)
+                            costs[y] = costs[x] + lengths[(x, y)]
+                            pred[y] = x
+            # Done computing paths for this node, add to table
+            for dest in range(self.num_switches):
+                next_hop = dest
+                length = costs[dest]
+                while pred[next_hop] != node_num:
+                    next_hop = pred[next_hop]
+                data = [node_num, dest, next_hop, length]
+                rt_table.append(data)
+        # -------------DONE COMPUTING ROUTING TABLE-----------------
+        self.rt_table = rt_table
+
+    def send_route_update(self, switch_id):
+        """
+        Send the routing information that the particular switch will need.
+        """
+        message = f"{switch_id}\n"
+        for row in self.rt_table:
+            if row[0] == switch_id:
+                message += f"{row[1]} {row[2]}\n"
+        b_message = message.encode("utf-8")
+        self.sock.sendto(b_message, ("localhost", self.switch_ports[switch_id]))
+
+    def send_register_response(self, switch_id):
+        """
+        Send a register response to the given switch id.
+        """
+        neighbors = self.neighbors[switch_id]
+        message = f"{len(neighbors)}\n"
+        for neighbor in neighbors:
+            message += f"{neighbor} localhost {self.switch_ports[neighbor]}\n"
+        b_message = message.encode("utf-8")
+        self.sock.sendto(b_message, ("localhost", self.switch_ports[switch_id]))
+
+
 def main():
     #Check for number of arguments and exit if host/port not provided
     num_args = len(sys.argv)
     if num_args < 3:
         print ("Usage: python controller.py <port> <config file>\n")
         sys.exit(1)
+
+    controller = Controller(int(sys.argv[1]), "Config/graph_6.txt")
+    # Run the bootstrap process of the controller
+    controller.bootstrap()
     
-    # ----------READ IN CONFIGURATION FILE---------
-    file = open("Config/graph_6.txt", "r")
-    lines = file.readlines()
-    NUM_EXPECTED_SWITCHES = int(lines[0])
-    
-    #--------------WAIT FOR ALL SWITCH REQUESTS-------------
-    num_requests = 0
-    sock = socket(AF_INET, SOCK_DGRAM)
-    sock.bind(("localhost", int(sys.argv[1])))
-    while num_requests < NUM_EXPECTED_SWITCHES:
-        data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
-        print("received message: %s" % data)
-        num_requests += 1
-    #-------------------COMPUTE ROUTING TABLE-----------
-    rt_table = []
-    lengths = {}
-    neighbors = [[] for i in range(NUM_EXPECTED_SWITCHES)]
-    for line in lines[1:]:
-        node1, node2, dist = line.split(" ")
-        node1 = int(node1)
-        node2 = int(node2)
-        dist = int(dist)
-        lengths[(node1, node2)] = dist
-        lengths[(node2, node1)] = dist
-        neighbors[node1].append(node2)
-        neighbors[node2].append(node1)
-    # Find the shortest paths for each node
-    for node_num in range(NUM_EXPECTED_SWITCHES):
-        costs = [9999] * NUM_EXPECTED_SWITCHES
-        costs[node_num] = 0
-        pred = [node_num] * NUM_EXPECTED_SWITCHES
-        reached = set()
-        candidates = []
-        heappush(candidates, node_num)
-        while candidates != []:
-            x = heappop(candidates)
-            reached.add(x)
-            for y in neighbors[x]:
-                if y not in reached:
-                    if costs[x] + lengths[(x, y)] < costs[y]:
-                        if costs[y] == 9999:
-                            heappush(candidates, y)
-                        costs[y] = costs[x] + lengths[(x, y)]
-                        pred[y] = x
-        # Done computing paths for this node, add to table
-        for dest in range(NUM_EXPECTED_SWITCHES):
-            next_hop = dest
-            length = costs[dest]
-            while pred[next_hop] != node_num:
-                next_hop = pred[next_hop]
-            data = [node_num, dest, next_hop, length]
-            rt_table.append(data)
-    # -------------DONE COMPUTING ROUTING TABLE-----------------
-    print(rt_table)
-
-
-
 if __name__ == "__main__":
     main()
 
