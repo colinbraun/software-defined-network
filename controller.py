@@ -8,6 +8,8 @@ Last Modified Date: December 9th, 2021
 
 import sys
 from datetime import date, datetime
+from socket import *
+from heapq import *
 
 # Please do not modify the name of the log file, otherwise you will lose points because the grader won't be able to find your log file
 LOG_FILE = "Controller.log"
@@ -114,7 +116,63 @@ def main():
         print ("Usage: python controller.py <port> <config file>\n")
         sys.exit(1)
     
-    # Write your code below or elsewhere in this file
+    # ----------READ IN CONFIGURATION FILE---------
+    file = open("Config/graph_6.txt", "r")
+    lines = file.readlines()
+    NUM_EXPECTED_SWITCHES = int(lines[0])
+    
+    #--------------WAIT FOR ALL SWITCH REQUESTS-------------
+    num_requests = 0
+    sock = socket(AF_INET, SOCK_DGRAM)
+    sock.bind(("localhost", int(sys.argv[1])))
+    while num_requests < NUM_EXPECTED_SWITCHES:
+        data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
+        print("received message: %s" % data)
+        num_requests += 1
+    #-------------------COMPUTE ROUTING TABLE-----------
+    rt_table = []
+    lengths = {}
+    neighbors = [[] for i in range(NUM_EXPECTED_SWITCHES)]
+    for line in lines[1:]:
+        node1, node2, dist = line.split(" ")
+        node1 = int(node1)
+        node2 = int(node2)
+        dist = int(dist)
+        lengths[(node1, node2)] = dist
+        lengths[(node2, node1)] = dist
+        neighbors[node1].append(node2)
+        neighbors[node2].append(node1)
+    # Find the shortest paths for each node
+    for node_num in range(NUM_EXPECTED_SWITCHES):
+        costs = [9999] * NUM_EXPECTED_SWITCHES
+        costs[node_num] = 0
+        pred = [node_num] * NUM_EXPECTED_SWITCHES
+        reached = set()
+        candidates = []
+        heappush(candidates, node_num)
+        while candidates != []:
+            x = heappop(candidates)
+            reached.add(x)
+            for y in neighbors[x]:
+                if y not in reached:
+                    if costs[x] + lengths[(x, y)] < costs[y]:
+                        if costs[y] == 9999:
+                            heappush(candidates, y)
+                        costs[y] = costs[x] + lengths[(x, y)]
+                        pred[y] = x
+        # Done computing paths for this node, add to table
+        for dest in range(NUM_EXPECTED_SWITCHES):
+            next_hop = dest
+            length = costs[dest]
+            while pred[next_hop] != node_num:
+                next_hop = pred[next_hop]
+            data = [node_num, dest, next_hop, length]
+            rt_table.append(data)
+    # -------------DONE COMPUTING ROUTING TABLE-----------------
+    print(rt_table)
+
+
 
 if __name__ == "__main__":
     main()
+

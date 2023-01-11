@@ -1,0 +1,4 @@
+#!/bin/bash
+
+python3 controller.py 3000 Config/graph_2.txt
+

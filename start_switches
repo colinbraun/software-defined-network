@@ -1,0 +1,17 @@
+#!/bin/bash
+
+echo Starting Switches...
+echo
+
+echo Starting Switch 1
+python3 switch.py 1 3001 3000 &
+echo Starting Switch 2
+python3 switch.py 2 3002 3000 &
+python3 switch.py 3 3003 3000 &
+python3 switch.py 4 3004 3000 &
+python3 switch.py 5 3005 3000 &
+python3 switch.py 6 3006 3000 &
+
+echo
+echo Done Starting Switches...
+
