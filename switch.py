@@ -9,6 +9,7 @@ Last Modified Date: December 9th, 2021
 import sys
 from datetime import date, datetime
 from socket import *
+import time
 
 # Please do not modify the name of the log file, otherwise you will lose points because the grader won't be able to find your log file
 LOG_FILE = "switch#.log" # The log file for switches are switch#.log, where # is the id of that switch (i.e. switch0.log, switch1.log). The code for replacing # with a real number has been given to you in the main function.
@@ -139,6 +140,8 @@ class Switch:
         self.neighbor_ids = [-1] * num_neighbors
         for neighbor_index in range(num_neighbors):
             parts = lines[neighbor_index + 1].split(" ")
+            if parts[0] == "":
+                continue
             self.neighbor_ids[neighbor_index] = int(parts[0])
             self.neighbor_addrs[neighbor_index] = (parts[1], int(parts[2]))
         # print(f"I am switch {self.switch_id}")
@@ -180,6 +183,8 @@ def main():
     LOG_FILE = 'switch' + str(my_id) + ".log" 
     switch = Switch(my_id, int(sys.argv[3]))
     switch.bootstrap()
+    time.sleep(5)
+    switch.send_topology_update()
 
     # Write your code below or elsewhere in this file
 
