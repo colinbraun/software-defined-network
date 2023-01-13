@@ -8,7 +8,7 @@ python3 switch.py 1 localhost 3000 &
 python3 switch.py 2 localhost 3000 &
 python3 switch.py 3 localhost 3000 &
 python3 switch.py 4 localhost 3000 &
-python3 switch.py 5 localhost 3000 &
+# python3 switch.py 5 localhost 3000 &
 
 echo
 echo Done Starting Switches...

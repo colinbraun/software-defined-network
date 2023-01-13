@@ -10,6 +10,7 @@ import sys
 from datetime import date, datetime
 from socket import *
 import time
+import threading
 
 # Please do not modify the name of the log file, otherwise you will lose points because the grader won't be able to find your log file
 LOG_FILE = "switch#.log" # The log file for switches are switch#.log, where # is the id of that switch (i.e. switch0.log, switch1.log). The code for replacing # with a real number has been given to you in the main function.
@@ -103,18 +104,60 @@ class Switch:
         self.controller_address = (controller_hostname, controller_port)
         self.sock = socket(AF_INET, SOCK_DGRAM)
         # To be updated when registering
-        self.neighbor_ids = None
+        # This is a map that takes a neighbor's id as the key and gives an index into their other data as a value
+        self.neighbor_ids_to_index = {}
         self.neighbor_addrs = None
         self.neighbor_statuses = None
+        self.last_update_times = None
         # sock.bind(("localhost", int(sys.argv[1])))
 
     def bootstrap(self):
         """
         Run the bootstrap code. Always run this first after constructing this object.
+        This creates a thread for each neighbor, keeping track of whether it has timed out or not.
         """
         self.send_register_request()
+        # Start a thread to manage sending periodic keep alive and topology updates
+        new_thread = threading.Thread(target=self.thread_keep_alive, daemon=True)
+        new_thread.start()
         # Initially assume all other neighbors are alive
         self.neighbor_statuses = [True] * len(self.neighbor_addrs)
+        self.last_update_times = [-1] * len(self.neighbor_addrs)
+        for neighbor_id in self.neighbor_ids_to_index.keys():
+            self.last_update_times[self.neighbor_ids_to_index[neighbor_id]] = time.time()
+            new_thread = threading.Thread(target=self.thread_proc, args=(neighbor_id,), daemon=True)
+            # Start the new thread
+            new_thread.start()
+            # Wait a moment to prevent all switches from timing out at the same time
+            time.sleep(0.3)
+
+
+    def thread_proc(self, neighbor_id):
+        """
+        Mange whether or not the neighbor with the given id has timed out yet.
+        """
+        neighbor_index = self.neighbor_ids_to_index[neighbor_id]
+        time_elapsed = time.time() - self.last_update_times[neighbor_index]
+        while time_elapsed < TIMEOUT:
+            # Wait until the TIMEOUT might have happened
+            time.sleep(TIMEOUT - time_elapsed)
+            time_elapsed = time.time() - self.last_update_times[neighbor_index]
+        # If we have broken out of the while loop above, the switch has TIMED OUT -> link is dead
+        # Recompute topology, send it out to all live switches, kill this thread.
+        print(f"NEIGHBOR {neighbor_id} HAS TIMED OUT")
+        self.neighbor_statuses[neighbor_index] = False
+        # Notify the controller about a topology update
+        self.send_topology_update()
+
+    def thread_keep_alive(self):
+        """
+        A thread to periodically send a KEEP ALIVE message to all neighbors every K seconds
+        as well as a topology update to the controller.
+        """
+        while True:
+            time.sleep(K)
+            self.send_topology_update()
+            self.send_keep_alive()
 
     def send_register_request(self):
         """
@@ -137,12 +180,12 @@ class Switch:
         # The addresses (hostname, port) of the neighbors
         self.neighbor_addrs = [None] * num_neighbors
         # The ids of the neighbors
-        self.neighbor_ids = [-1] * num_neighbors
+        # self.neighbor_ids_to_index = [-1] * num_neighbors
         for neighbor_index in range(num_neighbors):
             parts = lines[neighbor_index + 1].split(" ")
             if parts[0] == "":
                 continue
-            self.neighbor_ids[neighbor_index] = int(parts[0])
+            self.neighbor_ids_to_index[int(parts[0])] = neighbor_index
             self.neighbor_addrs[neighbor_index] = (parts[1], int(parts[2]))
         # print(f"I am switch {self.switch_id}")
         # print(f"My neighbors:\n{self.neighbor_ids}")
@@ -161,13 +204,40 @@ class Switch:
         Send a topology update to the controller, detailing which neighbors are still alive and which are dead.
         """
         message = f"{self.switch_id}\n"
-        for i, neighbor_id in enumerate(self.neighbor_ids):
-            message += f"{neighbor_id} {self.neighbor_statuses[i]}\n"
+        for neighbor_id in self.neighbor_ids_to_index.keys():
+            message += f"{neighbor_id} {self.neighbor_statuses[self.neighbor_ids_to_index[neighbor_id]]}\n"
 
         b_message = message.encode("utf-8")
         self.sock.sendto(b_message, self.controller_address)
 
-    
+    def await_messages(self):
+        """
+        Wait for any messages from switches. This could be a topology update or a register request.
+
+        If it is a register request: When it does, send a register response and
+        create a new thread that manages checking if TIMEOUT has happened.
+        """
+        data, addr = self.sock.recvfrom(1024) # buffer size is 1024 bytes
+        data = data.decode("utf-8")
+        # If it is a KEEP ALIVE message, note that the connection is still alive if it was alive before
+        # If it was dead before, notify the controller of a change in topology
+        if "KEEP_ALIVE" in data:
+            neighbor_id = int(data[0])
+            neighbor_index = self.neighbor_ids_to_index[neighbor_id]
+            # Get whether it was previously alive or not
+            was_alive = self.neighbor_statuses[neighbor_index]
+            # Consider it alive now
+            self.neighbor_statuses[neighbor_index] = True
+            # Reset the timeout
+            self.last_update_times[neighbor_index] = time.time()
+            # If wasn't previously alive, immediately notify the controller of the change
+            if not was_alive:
+                self.send_topology_update()
+        # Otherwise it was a routing update from the controller. Handle it.
+        else:
+            # TODO: Implement routing updates from the controller
+            pass
+
 
 def main():
 
@@ -183,8 +253,11 @@ def main():
     LOG_FILE = 'switch' + str(my_id) + ".log" 
     switch = Switch(my_id, int(sys.argv[3]))
     switch.bootstrap()
-    time.sleep(5)
-    switch.send_topology_update()
+    # time.sleep(5)
+    # switch.send_topology_update()
+    # Wait for messages to show up and handle them over and over again
+    while True:
+        switch.await_messages()
 
     # Write your code below or elsewhere in this file
 

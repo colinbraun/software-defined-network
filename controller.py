@@ -182,7 +182,7 @@ class Controller:
             # Set the last update time to now
             self.last_update_times[switch_id] = time.time()
             # Create a new thread
-            new_thread = threading.Thread(target=self.thread_proc, args=(switch_id,))
+            new_thread = threading.Thread(target=self.thread_proc, args=(switch_id,), daemon=True)
             # Start the new thread
             new_thread.start()
             # Wait a moment to prevent all switches from timing out at the same time
@@ -223,7 +223,7 @@ class Controller:
             for switch_id in range(self.total_switches):
                 self.send_route_update(switch_id)
             # Create a new thread
-            new_thread = threading.Thread(target=self.thread_proc, args=(switch_id,))
+            new_thread = threading.Thread(target=self.thread_proc, args=(switch_id,), daemon=True)
             # Start the new thread
             new_thread.start()
         # Otherwise it is a topology update
