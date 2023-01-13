@@ -10,6 +10,8 @@ import sys
 from datetime import date, datetime
 from socket import *
 from heapq import *
+import threading
+import time
 
 # Please do not modify the name of the log file, otherwise you will lose points because the grader won't be able to find your log file
 LOG_FILE = "Controller.log"
@@ -120,13 +122,31 @@ class Controller:
         # Read in the configuration file
         file = open(config_file, "r")
         self.config_lines = file.readlines()
-        self.num_switches = int(self.config_lines[0])
-        self.switch_ips = [""] * self.num_switches
-        self.switch_ports = [-1] * self.num_switches
+        self.total_switches = int(self.config_lines[0])
+        self.num_online_switches = 0
+        self.switch_hostnames = [""] * self.total_switches
+        self.switch_ports = [-1] * self.num_online_switches
+        self.last_update_times = [-1.0] * self.total_switches
+        # A list containing True or False when indexed by a switch id indicating alive or dead
+        self.switch_statuses = [False] * self.total_switches
 
         # Create a socket
         self.sock = socket(AF_INET, SOCK_DGRAM)
         self.sock.bind(("localhost", port))
+
+        # Determine the lengths and initially the neighbors of the switches from the config file
+        # This assumes that all of the links and switches start in a working state
+        self.lengths = {}
+        self.neighbors = [[] for i in range(self.total_switches)]
+        for line in self.config_lines[1:]:
+            node1, node2, dist = line.split(" ")
+            node1 = int(node1)
+            node2 = int(node2)
+            dist = int(dist)
+            self.lengths[(node1, node2)] = dist
+            self.lengths[(node2, node1)] = dist
+            self.neighbors[node1].append(node2)
+            self.neighbors[node2].append(node1)
 
     def bootstrap(self):
         """
@@ -134,25 +154,65 @@ class Controller:
         1. Wait for all switches to have sent their register request
         """
         #--------------WAIT FOR ALL SWITCH REQUESTS-------------
-        num_requests = 0
-        while num_requests < self.num_switches:
+        while self.num_online_switches < self.total_switches:
+            # Note: Must not use await_register_request() since only send register responses once all requests happen
             data, addr = self.sock.recvfrom(1024) # buffer size is 1024 bytes
-            data = data.decode("utf-8")
-            switch_id = int(data[0])
-            print("received message: %s" % data)
-            print(addr)
-            print(switch_id)
-            self.switch_ips[switch_id] = addr[0]
-            self.switch_ports[switch_id] = addr[1]
-            num_requests += 1
             # Log that we received the register request
             register_request_received(switch_id)
+            data = data.decode("utf-8")
+            switch_id = int(data[0])
+            # Consider switch to be alive
+            self.switch_statuses[switch_id] = True
+            print("Received Register Request: %s" % data)
+            print(addr)
+            print(switch_id)
+            self.switch_hostnames[switch_id] = addr[0]
+            self.switch_ports[switch_id] = addr[1]
+            self.num_online_switches += 1
 
         # Compute the routing table
         self.compute_routes()
         # Send the register responses
-        for switch_id in range(self.num_switches):
+        for switch_id in range(self.num_online_switches):
             self.send_register_response(switch_id)
+
+    def await_register_request():
+        """
+        Wait for a register request to come in. When it does, send a register response and
+        create a new thread that manages checking if TIMEOUT has happened.
+        """
+        data, addr = self.sock.recvfrom(1024) # buffer size is 1024 bytes
+        data = data.decode("utf-8")
+        switch_id = int(data[0])
+        print("Received Register Request: %s" % data)
+        print(addr)
+        print(switch_id)
+        self.switch_hostnames[switch_id] = addr[0]
+        self.switch_ports[switch_id] = addr[1]
+        # Log that a register request was received
+        register_request_received(switch_id)
+        # Start keeping track of time involved in TIMEOUT
+        self.last_update_times[switch_id] = time.time()
+        # Send register response
+        self.send_register_response(switch_id)
+        # Create a new thread
+        new_thread = threading.Thread(target=thread_proc)
+        # Start the new thread
+        new_thread.start()
+
+    def thread_proc(self, switch_id):
+        """
+        The method to be passed as the run method for new threads created each register request.
+        """
+        time_elapsed = time.time() - self.last_update_times[switch_id]
+        while time_elapsed < TIMEOUT:
+            # Wait until the TIMEOUT might have happened
+            time.sleep(TIMEOUT - time_elapsed)
+            time_elapsed = time.time() - self.last_update_times[switch_id]
+        # If we have broken out of the while loop above, the switch has TIMED OUT -> Switch is dead
+        # Recompute topology, send it out to all live switches, kill this thread.
+        self.switch_statuses[switch_id] = False
+        self.compute_routes()
 
     def compute_routes(self):
         """
@@ -160,22 +220,11 @@ class Controller:
         """
         #-------------------COMPUTE ROUTING TABLE-----------
         rt_table = []
-        lengths = {}
-        self.neighbors = [[] for i in range(self.num_switches)]
-        for line in self.config_lines[1:]:
-            node1, node2, dist = line.split(" ")
-            node1 = int(node1)
-            node2 = int(node2)
-            dist = int(dist)
-            lengths[(node1, node2)] = dist
-            lengths[(node2, node1)] = dist
-            self.neighbors[node1].append(node2)
-            self.neighbors[node2].append(node1)
         # Find the shortest paths for each node
-        for node_num in range(self.num_switches):
-            costs = [9999] * self.num_switches
+        for switch_id in range(self.num_online_switches):
+            costs = [9999] * self.num_online_switches
             costs[node_num] = 0
-            pred = [node_num] * self.num_switches
+            pred = [node_num] * self.num_online_switches
             reached = set()
             candidates = []
             heappush(candidates, node_num)
@@ -184,13 +233,13 @@ class Controller:
                 reached.add(x)
                 for y in self.neighbors[x]:
                     if y not in reached:
-                        if costs[x] + lengths[(x, y)] < costs[y]:
+                        if costs[x] + self.lengths[(x, y)] < costs[y]:
                             if costs[y] == 9999:
                                 heappush(candidates, y)
-                            costs[y] = costs[x] + lengths[(x, y)]
+                            costs[y] = costs[x] + self.lengths[(x, y)]
                             pred[y] = x
             # Done computing paths for this node, add to table
-            for dest in range(self.num_switches):
+            for dest in range(self.num_online_switches):
                 next_hop = dest
                 length = costs[dest]
                 while pred[next_hop] != node_num:
@@ -200,8 +249,7 @@ class Controller:
         #-------------DONE COMPUTING ROUTING TABLE-----------------
         self.rt_table = rt_table
         # Log that we computed the routing table
-        routing_table_update(rt_table)t
-
+        routing_table_update(rt_table)
 
     def send_route_update(self, switch_id):
         """
@@ -238,6 +286,7 @@ def main():
     controller = Controller(int(sys.argv[1]), "Config/graph_6.txt")
     # Run the bootstrap process of the controller
     controller.bootstrap()
+    # Create the thread that waits for 
     
 if __name__ == "__main__":
     main()
