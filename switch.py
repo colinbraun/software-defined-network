@@ -261,6 +261,7 @@ class Switch:
                 parts = line.split(" ")
                 other_id = int(parts[0])
                 next_hop = int(parts[1])
+                table.append([switch_id, other_id, next_hop])
                 # TODO: Determine if updating this information should be done. Currently unknown.
                 # If this is a neighbor switch
                 # if other_id in self.neighbor_ids_to_index:
