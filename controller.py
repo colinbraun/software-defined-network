@@ -187,6 +187,9 @@ class Controller:
             new_thread.start()
             # Wait a moment to prevent all switches from timing out at the same time
             # time.sleep(0.3)
+        # Send the route updates out
+        for switch_id in range(self.total_switches):
+            self.send_route_update(switch_id)
 
     def await_messages(self):
         """

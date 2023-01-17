@@ -272,9 +272,9 @@ class Switch:
                 #         self.neighbor_statuses[other_index] = True
                 #         self.last_update_times[other_index] = time.time()
 
-                table.append([switch_id, other_id, next_hop])
             # Log the routing table that was received
             routing_table_update(table)
+            print(f"Switch {self.switch_id}: Received routing info from controller: {table}")
 
 
 def main():
