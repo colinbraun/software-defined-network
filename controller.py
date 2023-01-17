@@ -365,7 +365,7 @@ def main():
         print ("Usage: python controller.py <port> <config file>\n")
         sys.exit(1)
 
-    controller = Controller(int(sys.argv[1]), "Config/graph_6.txt")
+    controller = Controller(int(sys.argv[1]), sys.argv[2])
     # Run the bootstrap process of the controller. This creates other threads automatically.
     controller.bootstrap()
     # Wait for messages to show up from the switches

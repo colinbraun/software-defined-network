@@ -1,4 +1,4 @@
 #!/bin/bash
 
-python3 controller.py 3000 Config/graph_2.txt
+python3 controller.py 3000 Config/graph_6.txt
 
