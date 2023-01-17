@@ -161,10 +161,10 @@ class Controller:
         while self.num_online_switches < self.total_switches:
             # Note: Must not use await_register_request() since only send register responses once all requests happen
             data, addr = self.sock.recvfrom(1024) # buffer size is 1024 bytes
-            # Log that we received the register request
-            # register_request_received(switch_id)
             data = data.decode("utf-8")
             switch_id = int(data[0])
+            # Log that we received the register request
+            register_request_received(switch_id)
             # Consider switch to be alive
             self.switch_statuses[switch_id] = True
             print("Received Register Request: %s" % data)
@@ -186,7 +186,7 @@ class Controller:
             # Start the new thread
             new_thread.start()
             # Wait a moment to prevent all switches from timing out at the same time
-            time.sleep(0.3)
+            # time.sleep(0.3)
 
     def await_messages(self):
         """
@@ -207,7 +207,9 @@ class Controller:
             self.switch_ports[switch_id] = addr[1]
 
             # Log that a register request was received
-            # register_request_received(switch_id)
+            register_request_received(switch_id)
+            # Log that the switch is now alive
+            topology_update_switch_alive(switch_id)
             # Start keeping track of time involved in TIMEOUT
             self.last_update_times[switch_id] = time.time()
             # Send register response
@@ -215,7 +217,7 @@ class Controller:
             self.switch_statuses[switch_id] = True
             for neighbor_id in self.neighbors[switch_id]:
                 # Only if the neighbor is also online, then update the lengths
-                if self.switch_statuses[neigbhor_id]:
+                if self.switch_statuses[neighbor_id]:
                     self.lengths[(neighbor_id, switch_id)] = self.original_lengths[(neighbor_id, switch_id)]
                     self.lengths[(switch_id, neighbor_id)] = self.original_lengths[(switch_id, neighbor_id)]
             # Since the switch was previously offline, we will have a new topology. Once registered, send it out.
@@ -239,16 +241,20 @@ class Controller:
                 alive = True if "True" in line else False
                 # If the link was previously dead and is now alive, we have a new topology
                 if self.lengths[(switch_id, neighbor_id)] == 9999 and alive:
+                    print(f"Link from {switch_id} to {neighbor_id} restored -> Topology Update")
                     # Update the length to be correct now
                     self.lengths[(switch_id, neighbor_id)] = self.original_lengths[(switch_id, neighbor_id)]
                     self.lengths[(neighbor_id, switch_id)] = self.original_lengths[(switch_id, neighbor_id)]
                     topology_update = True
                 # Otherwise if the link was previously alive and now is dead, we have a new topology
                 elif self.lengths[(switch_id, neighbor_id)] != 9999 and not alive:
+                    print(f"Link from {switch_id} to {neighbor_id} dead -> Topology Update")
                     # Update the length to be correct now
                     self.lengths[(switch_id, neighbor_id)] = 9999
                     self.lengths[(neighbor_id, switch_id)] = 9999
                     topology_update = True
+                    # Log that this happened
+                    topology_update_link_dead(switch_id, neighbor_id)
 
             # If there is a change in topology, send it out to all the switches
             if topology_update:
@@ -269,6 +275,7 @@ class Controller:
         # Recompute topology, send it out to all live switches, kill this thread.
         print(f"SWITCH {switch_id} HAS TIMED OUT")
         self.switch_statuses[switch_id] = False
+        topology_update_switch_dead(switch_id)
         # Set the distances to and from the neighbors to this switch id to 9999
         for neighbor in self.neighbors[switch_id]:
             self.lengths[(switch_id, neighbor)] = 9999
@@ -314,11 +321,17 @@ class Controller:
                 data = [node_num, dest, next_hop, length]
                 rt_table.append(data)
         #-------------DONE COMPUTING ROUTING TABLE-----------------
+        # Update destinations and distances of entries with distance >= 9999
+        for row in rt_table:
+            if row[3] >= 9999:
+                row[2] = -1
+                row[3] = 9999
+
         self.rt_table = rt_table
         print("Routing:")
         print(rt_table)
         # Log that we computed the routing table
-        # routing_table_update(rt_table)
+        routing_table_update(rt_table)
 
     def send_route_update(self, switch_id):
         """

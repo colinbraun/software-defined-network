@@ -94,11 +94,12 @@ def write_to_log(log):
 
 class Switch:
 
-    def __init__(self, switch_id, controller_port, controller_hostname="localhost"):
+    def __init__(self, switch_id, controller_port, controller_hostname="localhost", failed_link_neighbor_id=-1):
         """
         Switch constructor.
         """
         self.switch_id = switch_id
+        self.failed_link_neighbor_id = failed_link_neighbor_id
         self.controller_hostname = controller_hostname
         self.controller_port = controller_port
         self.controller_address = (controller_hostname, controller_port)
@@ -129,7 +130,7 @@ class Switch:
             # Start the new thread
             new_thread.start()
             # Wait a moment to prevent all switches from timing out at the same time
-            time.sleep(0.3)
+            # time.sleep(0.3)
 
 
     def thread_proc(self, neighbor_id):
@@ -145,6 +146,7 @@ class Switch:
         # If we have broken out of the while loop above, the switch has TIMED OUT -> link is dead
         # Recompute topology, send it out to all live switches, kill this thread.
         print(f"NEIGHBOR {neighbor_id} HAS TIMED OUT")
+        neighbor_dead(neighbor_id)
         self.neighbor_statuses[neighbor_index] = False
         # Notify the controller about a topology update
         self.send_topology_update()
@@ -157,6 +159,9 @@ class Switch:
         while True:
             time.sleep(K)
             self.send_topology_update()
+            # If we should simulate a failure, do nothing. Else send the keep alive like normal
+            # if self.failed_link_neighbor_id == -1:
+            # Above is not good. The link failure mode is now handled by send_keep_alive
             self.send_keep_alive()
 
     def send_register_request(self):
@@ -195,15 +200,23 @@ class Switch:
         Send the keep-alive message to all neighbor switches.
         """
         message = f"{self.switch_id} KEEP_ALIVE"
+        print(f"Switch {self.switch_id}: Sending KEEP ALIVE message to switch ids {list(self.neighbor_ids_to_index.keys())}")
         b_message = message.encode("utf-8")
-        for neighbor_addr in self.neighbor_addrs:
-            self.sock.sendto(b_message, neighbor_addr)
+        for neighbor_id in self.neighbor_ids_to_index.keys():
+            neighbor_index = self.neighbor_ids_to_index[neighbor_id]
+            neighbor_addr = self.neighbor_addrs[neighbor_index]
+            # If this is not a link we are simulating as dead, send a keep alive message.
+            if not self.failed_link_neighbor_id == neighbor_id:
+                self.sock.sendto(b_message, neighbor_addr)
+            else:
+                print(f"Switch {self.switch_id}: DID NOT SEND KEEP ALIVE message to switch id {self.failed_link_neighbor_id}")
     
     def send_topology_update(self):
         """
         Send a topology update to the controller, detailing which neighbors are still alive and which are dead.
         """
         message = f"{self.switch_id}\n"
+        print(f"Switch {self.switch_id}: Sending topology update.\nNeighbor IDs to Index: {self.neighbor_ids_to_index}\nNeighbor Statuses: {self.neighbor_statuses}\n")
         for neighbor_id in self.neighbor_ids_to_index.keys():
             message += f"{neighbor_id} {self.neighbor_statuses[self.neighbor_ids_to_index[neighbor_id]]}\n"
 
@@ -223,7 +236,12 @@ class Switch:
         # If it was dead before, notify the controller of a change in topology
         if "KEEP_ALIVE" in data:
             neighbor_id = int(data[0])
+            print(f"Switch {self.switch_id}: Received KEEP ALIVE message from switch id {neighbor_id}")
             neighbor_index = self.neighbor_ids_to_index[neighbor_id]
+            self.neighbor_addrs[neighbor_index] = addr
+            # If the neighbor id is the one we are simulating as dead, stop what we're doing -> return
+            if neighbor_id == self.failed_link_neighbor_id:
+                return
             # Get whether it was previously alive or not
             was_alive = self.neighbor_statuses[neighbor_index]
             # Consider it alive now
@@ -233,10 +251,29 @@ class Switch:
             # If wasn't previously alive, immediately notify the controller of the change
             if not was_alive:
                 self.send_topology_update()
+                neighbor_alive(neighbor_id)
         # Otherwise it was a routing update from the controller. Handle it.
         else:
-            # TODO: Implement routing updates from the controller
-            pass
+            switch_id = data[0]
+            lines = data.split("\n")[1:-1]
+            table = []
+            for line in lines:
+                parts = line.split(" ")
+                other_id = int(parts[0])
+                next_hop = int(parts[1])
+                # TODO: Determine if updating this information should be done. Currently unknown.
+                # If this is a neighbor switch
+                # if other_id in self.neighbor_ids_to_index:
+                #     other_index = self.neighbor_ids_to_index[other_id]
+                #     # And if we previously thought it was a dead link but no longer is
+                #     if (not self.neighbor_statuses[other_index]) and next_hop != -1:
+                #         # Then assume the connection is restored and reset the timeout
+                #         self.neighbor_statuses[other_index] = True
+                #         self.last_update_times[other_index] = time.time()
+
+                table.append([switch_id, other_id, next_hop])
+            # Log the routing table that was received
+            routing_table_update(table)
 
 
 def main():
@@ -251,7 +288,14 @@ def main():
 
     my_id = int(sys.argv[1])
     LOG_FILE = 'switch' + str(my_id) + ".log" 
-    switch = Switch(my_id, int(sys.argv[3]))
+    controller_port = int(sys.argv[3])
+    # Check if we have the -f flag, set up switch to fail if so
+    if num_args == 6:
+        neighbor_id = int(sys.argv[5])
+        print(f"Failed link mode between {my_id} and {neighbor_id}")
+        switch = Switch(my_id, controller_port, failed_link_neighbor_id=neighbor_id)
+    else:
+        switch = Switch(my_id, controller_port)
     switch.bootstrap()
     # time.sleep(5)
     # switch.send_topology_update()

@@ -12,4 +12,7 @@ python3 switch.py 4 localhost 3000 &
 
 echo
 echo Done Starting Switches...
+echo Press Enter to Kill all Switches and Controller
+read
+pkill python3
 
