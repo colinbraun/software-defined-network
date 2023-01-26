@@ -329,6 +329,9 @@ class Controller:
             if row[3] >= 9999:
                 row[2] = -1
                 row[3] = 9999
+            # If the switch is dead, consider its next hop to be -1
+            if self.switch_statuses[row[0]] and row[1] == row[0]:
+                row[2] = -1
 
         self.rt_table = rt_table
         print("Routing:")
