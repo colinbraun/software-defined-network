@@ -2,7 +2,7 @@
 echo "n" >> grade1
 git add .
 git commit -m "Submit attempt"
-git tag -f submission
+git tag -f -a submission
 git push
 git push --tags -f origin
 
