@@ -299,9 +299,6 @@ class Controller:
             costs[node_num] = 0
             pred = [node_num] * self.total_switches
             reached = set()
-            # candidates = [node_num]
-            # candidates = [(0, node_num)]
-            # candidates_costs = []
             candidates = []
             heappush(candidates, (0, node_num))
             while candidates != []:
