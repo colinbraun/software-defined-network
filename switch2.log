@@ -26,3 +26,59 @@ Routing Update
 2,1:-1
 2,2:2
 Routing Complete
+
+
+11:32:41.098850
+Register Request Sent
+
+
+11:32:43.351374
+Register Response received
+
+
+11:32:43.355372
+Routing Update
+2,0:1
+2,1:1
+2,2:2
+2,3:3
+2,4:3
+2,5:5
+Routing Complete
+
+
+11:33:01.371476
+Neighbor Dead 5
+
+
+11:33:01.374500
+Routing Update
+2,0:1
+2,1:1
+2,2:2
+2,3:3
+2,4:3
+2,5:5
+Routing Complete
+
+
+11:33:01.375324
+Routing Update
+2,0:1
+2,1:1
+2,2:2
+2,3:3
+2,4:3
+2,5:5
+Routing Complete
+
+
+11:33:01.377789
+Routing Update
+2,0:1
+2,1:1
+2,2:2
+2,3:3
+2,4:3
+2,5:-1
+Routing Complete

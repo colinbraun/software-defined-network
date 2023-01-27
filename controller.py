@@ -322,16 +322,15 @@ class Controller:
                 while pred[next_hop] != node_num:
                     next_hop = pred[next_hop]
                 data = [node_num, dest, next_hop, length]
-                rt_table.append(data)
+                # Only if the switch is alive, add this info to the table
+                if self.switch_statuses[node_num]:
+                    rt_table.append(data)
         #-------------DONE COMPUTING ROUTING TABLE-----------------
         # Update destinations and distances of entries with distance >= 9999
         for row in rt_table:
             if row[3] >= 9999:
                 row[2] = -1
                 row[3] = 9999
-            # If the switch is dead, consider its next hop to be -1
-            if not self.switch_statuses[row[0]]:
-                row[2] = -1
 
         self.rt_table = rt_table
         print("Routing:")

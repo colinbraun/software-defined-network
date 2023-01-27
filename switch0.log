@@ -26,3 +26,59 @@ Routing Update
 0,1:-1
 0,2:2
 Routing Complete
+
+
+11:32:41.098775
+Register Request Sent
+
+
+11:32:43.349683
+Register Response received
+
+
+11:32:43.355026
+Routing Update
+0,0:0
+0,1:1
+0,2:1
+0,3:3
+0,4:1
+0,5:5
+Routing Complete
+
+
+11:33:01.371361
+Neighbor Dead 5
+
+
+11:33:01.373663
+Routing Update
+0,0:0
+0,1:1
+0,2:1
+0,3:3
+0,4:1
+0,5:-1
+Routing Complete
+
+
+11:33:01.374655
+Routing Update
+0,0:0
+0,1:1
+0,2:1
+0,3:3
+0,4:1
+0,5:1
+Routing Complete
+
+
+11:33:01.377213
+Routing Update
+0,0:0
+0,1:1
+0,2:1
+0,3:3
+0,4:1
+0,5:-1
+Routing Complete
