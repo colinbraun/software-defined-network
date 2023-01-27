@@ -1,0 +1,8 @@
+#!/bin/bash
+echo "n" >> grade1
+git add .
+git commit -m "Submit attempt"
+git push
+git tag -f submission
+tag push --tags -f origin
+
