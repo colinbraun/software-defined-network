@@ -304,9 +304,9 @@ class Controller:
             pred = [node_num] * self.total_switches
             reached = set()
             candidates = []
-            heappush(candidates, (0, node_num))
+            heappush(candidates, (node_num, 0))
             while candidates != []:
-                _, x = heappop(candidates)
+                x, _ = heappop(candidates)
 
                 reached.add(x)
                 for y in self.neighbors[x]:
