@@ -299,15 +299,15 @@ class Controller:
         rt_table = []
         # Find the shortest paths for each node
         for node_num in range(self.total_switches):
-            costs = [1E9] * self.total_switches
-            costs[node_num] = 0
+            dist = [1E9] * self.total_switches
+            dist[node_num] = 0
             prev = [node_num] * self.total_switches
             q = []
             heappush(q, (0, node_num))
             while q != []:
                 _, u = heappop(q)
                 for v in self.neighbors[u]:
-                    alt = costs[u] + self.lengths[(u, v)]
+                    alt = dist[u] + self.lengths[(u, v)]
                     if alt < dist[v]:
                         dist[v] = alt
                         prev[v] = u
@@ -316,9 +316,9 @@ class Controller:
             # Done computing paths for this node, add to table
             for dest in range(self.total_switches):
                 next_hop = dest
-                length = costs[dest]
-                while pred[next_hop] != node_num:
-                    next_hop = pred[next_hop]
+                length = dist[dest]
+                while prev[next_hop] != node_num:
+                    next_hop = prev[next_hop]
                 data = [node_num, dest, next_hop, length]
                 # Only if the switch is alive, add this info to the table
                 if self.switch_statuses[node_num]:
@@ -336,7 +336,7 @@ class Controller:
         # Log that we computed the routing table
         routing_table_update(rt_table)
 
-    def compute_routes(self):
+    def compute_routes2(self):
         """
         Compute the routing table based on the information in the config file.
         """

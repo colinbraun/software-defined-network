@@ -85,3 +85,34 @@ Routing Update
 1,4:4
 1,5:0
 Routing Complete
+
+
+12:56:08.914391
+Register Request Sent
+
+
+12:56:54.765504
+Register Request Sent
+
+
+12:57:34.032384
+Register Request Sent
+
+
+12:58:16.825775
+Register Request Sent
+
+
+12:58:17.824383
+Register Response received
+
+
+12:58:17.826454
+Routing Update
+1,0:0
+1,1:1
+1,2:2
+1,3:2
+1,4:4
+1,5:0
+Routing Complete
