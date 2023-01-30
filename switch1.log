@@ -66,3 +66,22 @@ Routing Update
 1,4:4
 1,5:-1
 Routing Complete
+
+
+11:58:18.722304
+Register Request Sent
+
+
+11:58:23.313720
+Register Response received
+
+
+11:58:23.317014
+Routing Update
+1,0:0
+1,1:1
+1,2:2
+1,3:2
+1,4:4
+1,5:0
+Routing Complete

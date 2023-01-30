@@ -122,7 +122,10 @@ class Controller:
         # Read in the configuration file
         file = open(config_file, "r")
         self.config_lines = file.readlines()
-        write_to_log(self.config_lines)
+        config_copy = self.config_lines.copy()
+        config_copy.insert(0, "START LOGGING CONFIG FILE\n")
+        config_copy.append("END LOGGING CONFIG FILE\n")
+        write_to_log(config_copy)
         self.total_switches = int(self.config_lines[0])
         self.num_online_switches = 0
         self.switch_hostnames = [""] * self.total_switches

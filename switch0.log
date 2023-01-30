@@ -82,3 +82,22 @@ Routing Update
 0,4:1
 0,5:-1
 Routing Complete
+
+
+11:58:18.722304
+Register Request Sent
+
+
+11:58:23.313312
+Register Response received
+
+
+11:58:23.316867
+Routing Update
+0,0:0
+0,1:1
+0,2:1
+0,3:3
+0,4:1
+0,5:5
+Routing Complete
