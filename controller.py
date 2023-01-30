@@ -293,6 +293,51 @@ class Controller:
 
     def compute_routes(self):
         """
+        New version of computing the routes, since last one seemed to fail
+        """
+        #-------------------COMPUTE ROUTING TABLE-----------
+        rt_table = []
+        # Find the shortest paths for each node
+        for node_num in range(self.total_switches):
+            costs = [1E9] * self.total_switches
+            costs[node_num] = 0
+            prev = [node_num] * self.total_switches
+            q = []
+            heappush(q, (0, node_num))
+            while q != []:
+                _, u = heappop(q)
+                for v in self.neighbors[u]:
+                    alt = costs[u] + self.lengths[(u, v)]
+                    if alt < dist[v]:
+                        dist[v] = alt
+                        prev[v] = u
+                        if v not in q:
+                            heappush(q, (alt, v))
+            # Done computing paths for this node, add to table
+            for dest in range(self.total_switches):
+                next_hop = dest
+                length = costs[dest]
+                while pred[next_hop] != node_num:
+                    next_hop = pred[next_hop]
+                data = [node_num, dest, next_hop, length]
+                # Only if the switch is alive, add this info to the table
+                if self.switch_statuses[node_num]:
+                    rt_table.append(data)
+        #-------------DONE COMPUTING ROUTING TABLE-----------------
+        # Update destinations and distances of entries with distance >= 9999
+        for row in rt_table:
+            if row[3] >= 9999:
+                row[2] = -1
+                row[3] = 9999
+
+        self.rt_table = rt_table
+        print("Routing:")
+        print(rt_table)
+        # Log that we computed the routing table
+        routing_table_update(rt_table)
+
+    def compute_routes(self):
+        """
         Compute the routing table based on the information in the config file.
         """
         #-------------------COMPUTE ROUTING TABLE-----------
