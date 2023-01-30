@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "n" >> grade1
+echo "n" >> change
 git add .
 git commit -m "Submit attempt"
 git tag -f submission
